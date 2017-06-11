@@ -1,4 +1,5 @@
 import numpy as np
+import zipfile
 import logging
 from typing import *
 from allensdk.api.queries.ontologies_api import OntologiesApi
@@ -15,8 +16,8 @@ class AllenBrainStructure:
     def __init__(self, object_dict: Dict[str, Any], atlas: Any) -> None:
         for k, v in object_dict.items():
             setattr(self, k, v)
-        self.children = []
-        self.parent = None
+        self.children = []  # type: List
+        self.parent = None  # type: Any
         self._atlas = atlas
         
     def add_children(self, other: Any) -> None:
@@ -24,24 +25,24 @@ class AllenBrainStructure:
             self.children.append(other)
             other.set_parent(self)
             
-    def set_parent(self, other):
+    def set_parent(self, other) -> None:
         if self.parent is None:
             self.parent = other
             other.add_children(self)
             
-    def connect(self):
+    def connect(self) -> None:
         if self.parent_structure_id is not None:
             parent_obj = self._atlas[self.parent_structure_id]
             self.set_parent(parent_obj)
         else:
             pass
     
-    def __repr__(self):
+    def __repr__(self) -> str:
         head = super(AllenBrainStructure, self).__repr__()
         memory_address = head.split(" ")[-1][:-1]
         return '<AllenBrainStructure %s "%s" at %s>' % (self.id, self.safe_name, memory_address)
     
-    def _repr_html_(self):
+    def _repr_html_(self) -> str:
         html = "<p>"
         html += "<table>"
         html += '<tr align="center">'
@@ -87,17 +88,7 @@ class AllenBrainReference:
 class Reference3D:
     def __init__(self):
         pass
-
-
-class ColoredVolumetric:
-    def __init__(self, allen_vol_data):
-        self.vol_data = allen_vol_data
-        # Color(i) for self.vol_data.color_list
-        
-    def __getitem__(some_slice):
-        sliced = self.vol_data[some_slice]
-        sliced = np.tile(sliced[:, :, None], 3)
-        
+                
     
 class AllenVolumetricData:
     def __init__(self, filename: str, reference: Any=None) -> None:
@@ -110,9 +101,9 @@ class AllenVolumetricData:
                 raw_file = i
         info_file = self.zip_container.open(mhd_file).read().decode("ascii")
         entries_file = [i.split(" = ") for i in info_file.rstrip().split("\n")]
-        self.file_info = {k: ([int(i) for i in v.split(" ")] if (" " in v) else (k, v)) for k, v in entries_file}
-        self.shape = tuple(file_info['DimSize'])
-        self.is_label = ("UINT" in file_info['ElementType'][1])
+        self.file_info = {k:([int(i) for i in v.split(" ")] if (" " in v) else (k,v)) for k, v in entries_file }
+        self.shape = tuple(self.file_info['DimSize'])
+        self.is_label = ("UINT" in self.file_info['ElementType'][1])
         self.file_type = 'uint32' if self.is_label else 'uint8'
         logging.debug("Reading data file")
         buffer = zip_container.open(raw_file).read()
@@ -137,45 +128,82 @@ class AllenVolumetricData:
             return self.reference
     
     @reference.setter
-    def reference(self, reference_object):
+    def reference(self, reference_object: Any) -> None:
         self._reference = reference_object
-        self.color_list = []
-        for idx in self.ids:
+        self.color_table = np.zeros((len(self.ids), 3))
+        for i, idx in enumerate(self.ids):
             try:
-                self.color_list.append("#" + self._reference[idx].color_hex_triplet)
+                self.color_table[i, :] = Color("#" + self._reference[idx].color_hex_triplet).rgb
             except KeyError:
-                self.color_list.append("#000000")
-    
+                self.color_table[i, :] = Color("#000000").rgb
+
     @property    
     def colored(self):
         return self._colored
     
     def plot_slides(self, coronal, sagittal, ss=None, fig=None, return_figure=False):
-        if fig is None:
-            fig = plt.gcf()
-        if ss is None:
-            ss = plt.GridSpec(1, 1)[0]
-        if return_figure:
-            fig.clear()
         if self.is_label and self.reference:
-            _cmap = ListedColormap(self.color_list)
+            self.colored.plot_slides(coronal=coronal, sagittal=sagittal, ss=ss, fig=fig, return_figure=return_figure)
         else:
-            _cmap = "gray"
-        gs = GridSpecFromSubplotSpec(1, 2, subplot_spec=ss)
-        ax = fig.add_subplot(gs[0])
-        ax.imshow(self[coronal, :, :], cmap=_cmap)
-        ax.axvline(sagittal, c='y', lw=1)
-        ax = fig.add_subplot(gs[1])
-        ax.imshow(self[:, :, sagittal].T, cmap=_cmap)
-        ax.axvline(coronal, c='y', lw=1)
-        if return_figure:
-            return fig
+            if fig is None:
+                fig = plt.gcf()
+            if ss is None:
+                ss = plt.GridSpec(1,1)[0]
+            if return_figure:
+                fig.clear()
+            gs = GridSpecFromSubplotSpec(1, 2, subplot_spec=ss)
+            ax = fig.add_subplot(gs[0])
+            ax.imshow(self[coronal, :, :], cmap="gray" )
+            ax.axvline(sagittal, c='y', lw=1)
+            ax = fig.add_subplot(gs[1])
+            ax.imshow(self[:,:,sagittal].T, cmap="gray" )
+            ax.axvline(coronal, c='y', lw=1)
+            if return_figure:
+                return fig
         
     def interactive_slides(self):
-        fig = plt.figure(figsize=(12, 5))
-        gs = plt.GridSpec(1, 1)
-        interact(plot_slides,
-                 coronal=(0, array_3d.shape[0] - 1),
-                 sagittal=(0, array_3d.shape[-1] - 1),
-                 ss=fixed(gs[0]), fig=fixed(fig))
+        fig = plt.figure(figsize=(12,5))
+        gs = plt.GridSpec(1,1)
+        interact(self.plot_slides, coronal=(0, self.shape[0]-1),
+                 sagittal=(0, self.shape[-1]-1), ss=fixed(gs[0]), fig=fixed(fig))
         plt.clf()
+        
+
+class ColoredVolumetric:
+    def __init__(self, allen_vol_data):
+        self.vol_data = allen_vol_data
+        
+    def __getitem__(self, some_slice):
+        return self.vol_data.color_table[self.vol_data[some_slice],:]
+    
+    def plot_slides(self, coronal, sagittal, contour=True, ss=None, fig=None, return_figure=False):
+            if fig is None:
+                fig = plt.gcf()
+            if ss is None:
+                ss = plt.GridSpec(1,1)[0]
+            if return_figure:
+                fig.clear()
+            gs = GridSpecFromSubplotSpec(1,2,subplot_spec=ss)
+            ax = fig.add_subplot(gs[0])
+            coronal_section = self[coronal,:,:]
+            ax.imshow(coronal_section)
+            coronal_section = self.vol_data[coronal,:,:]
+            ax.axvline(sagittal, c='y',lw=1)
+            if contour:
+                for ix in range(self.vol_data.ids.shape[0]):
+                    ith_contours = find_contours((coronal_section == ix).astype(float), 0.5)
+                    for n_ith_contour in ith_contours:
+                        plt.plot(n_ith_contour[:,1], n_ith_contour[:,0], lw=0.8,
+                                 color="w")
+            ax = fig.add_subplot(gs[1])
+            sagittal_section = self[:,:,sagittal]
+            ax.imshow(np.transpose(sagittal_section, (1,0,2)))
+            sagittal_section = self.vol_data[:,:,sagittal]
+            ax.axvline(coronal, c='y', lw=1)
+            if contour:
+                for ix in range(self.vol_data.ids.shape[0]):
+                    ith_contours = find_contours((sagittal_section == ix).astype(float), 0.5)
+                    for n_ith_contour in ith_contours:
+                        plt.plot(n_ith_contour[:, 0], n_ith_contour[:, 1], lw=0.8, color="w")
+            if return_figure:
+                return fig
