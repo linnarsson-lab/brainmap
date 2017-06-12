@@ -122,6 +122,6 @@ class FISHFetcher:
             idd = ids[0]
             output_path = os.path.join(folder, "%s_%s_%s_%s.zip" % (gene, sag_or_cor, time_point, idd))
             self.gda.download_expression_grid_data(idd, path=output_path)
-        except KeyError:
+        except IndexError:
             logging.warn("Experiment %s was never performed" % gene)
             pass
