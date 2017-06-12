@@ -2,7 +2,6 @@ import numpy as np
 import matplotlib.pyplot as plt
 from allensdk.api.queries.rma_api import RmaApi
 from allensdk.api.queries.grid_data_api import GridDataApi
-from brainmap import AllenVolumetricData
 import os
 
 
