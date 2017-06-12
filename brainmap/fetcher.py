@@ -57,6 +57,9 @@ class FISHFetcher:
         if isinstance(res, str):
             raise ValueError("Bad query! Server returned :\n%s" % res)
 
+        if res == []:
+            return res
+
         qc_date = []
         for i in res:
             if i["qc_date"] is None:
