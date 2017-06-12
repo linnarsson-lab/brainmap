@@ -116,7 +116,9 @@ class AllenVolumetricData:
         self.file_info = {k: ([int(i) for i in (v.split(" "))] if (" " in v) else v) for k, v in entries_file}  # type: Dict[str, Any]
         self.shape = tuple(self.file_info['DimSize'])
         self.is_label = ("UINT" in self.file_info['ElementType'])
-        self.file_type = 'uint32' if self.is_label else 'uint8'
+        self.file_type = {"MET_UINT": 'uint32',
+                          "MET_UCHAR": 'uint8',
+                          "MET_FLOAT": "float32"}[self.file_info['ElementType']]
         logging.debug("Reading data file")
         buffer = self.zip_container.open(raw_file).read()
         array1d = np.fromstring(buffer, dtype=self.file_type)
