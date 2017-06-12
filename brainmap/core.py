@@ -140,7 +140,7 @@ class AllenVolumetricData:
                 self.color_table[i, :] = Color("#000000").rgb
 
     @property
-    def colored(self) -> ColoredVolumetric:
+    def colored(self) -> Any:
         return self._colored
     
     def plot_slides(self, coronal: int, sagittal: int, ss: SubplotSpec=None, fig: Any=None, return_figure: Any=False) -> Any:
@@ -166,8 +166,14 @@ class AllenVolumetricData:
     def interactive_slides(self) -> None:
         fig = plt.figure(figsize=(12, 5))
         gs = plt.GridSpec(1, 1)
-        interact(self.plot_slides, coronal=(0, self.shape[0] - 1),
-                 sagittal=(0, self.shape[-1] - 1), ss=fixed(gs[0]), fig=fixed(fig))
+        plot_slides = lambda kwargs: self.plot_slides(**kwargs)
+        print((0, self.shape[0] - 1),
+              (0, self.shape[-1] - 1),
+              fixed(gs[0]),
+              fixed(fig),
+              fixed(1))
+        interact(plot_slides, coronal=(0, self.shape[0] - 1),
+                 sagittal=(0, self.shape[-1] - 1), ss=fixed(gs[0]), fig=fixed(fig), return_figure=fixed(1))
         plt.clf()
         
 
