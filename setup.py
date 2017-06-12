@@ -12,7 +12,8 @@ setup(
         'allensdk',
         'matplotlib',
         'colormap',
-        'ipywidgets'
+        'ipywidgets',
+        'scikit-image'
     ],
     # scripts=[],
     author="Gioele La Manno",
