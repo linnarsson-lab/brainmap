@@ -14,6 +14,16 @@ except ImportError:
     logging.warn("ipywidgets is not installed some function will not be available")
 
 
+def one_hot_encoding(array2d):
+    temp = np.array(array2d, dtype=int)
+    labels, temp.flat[:] = np.unique(temp, return_inverse=True)
+    arrays = [np.zeros(temp.shape, dtype=bool) for _ in range(len(labels))]
+    for i in range(temp.shape[0]):
+        for j in range(temp.shape[1]):
+            arrays[temp[i,j]][i,j] = True
+    return arrays
+
+
 class AllenBrainStructure:
     def __init__(self, object_dict: Dict[str, Any], atlas: Any) -> None:
         for k, v in object_dict.items():
@@ -114,8 +124,8 @@ class AllenVolumetricData:
             self.ids, array1d = np.unique(array1d, return_inverse=True)
         self._values = array1d.reshape(self.shape, order='F')
         self.zip_container.close()
-        self.reference = reference
         if self.is_label:
+            self.reference = reference
             self._colored = ColoredVolumetric(self)
         
     def __getitem__(self, slice_obj: Tuple[Any, Any, Any]) -> np.ndarray:
@@ -145,12 +155,12 @@ class AllenVolumetricData:
     
     def plot_slides(self, coronal: int, sagittal: int, ss: SubplotSpec=None, fig: Any=None, return_figure: Any=False) -> Any:
         if self.is_label and self.reference:
-            self.colored.plot_slides(coronal=coronal, sagittal=sagittal, ss=ss, fig=fig, return_figure=return_figure)
+            return self.colored.plot_slides(coronal=coronal, sagittal=sagittal, contour=False, ss=ss, fig=fig, return_figure=return_figure)
         else:
             if fig is None:
                 fig = plt.gcf()
             if ss is None:
-                ss = plt.GridSpec(1,1)[0]
+                ss = plt.GridSpec(1, 1)[0]
             if return_figure:
                 fig.clear()
             gs = GridSpecFromSubplotSpec(1, 2, subplot_spec=ss)
@@ -164,17 +174,14 @@ class AllenVolumetricData:
                 return fig
         
     def interactive_slides(self) -> None:
-        fig = plt.figure(figsize=(12, 5))
-        gs = plt.GridSpec(1, 1)
-        plot_slides = lambda kwargs: self.plot_slides(**kwargs)
-        print((0, self.shape[0] - 1),
-              (0, self.shape[-1] - 1),
-              fixed(gs[0]),
-              fixed(fig),
-              fixed(1))
-        interact(plot_slides, coronal=(0, self.shape[0] - 1),
-                 sagittal=(0, self.shape[-1] - 1), ss=fixed(gs[0]), fig=fixed(fig), return_figure=fixed(1))
-        plt.clf()
+        if self.is_label and self.reference:
+            return self.colored.interactive_slides()
+        else:
+            fig = plt.figure(figsize=(12, 5))
+            gs = plt.GridSpec(1, 1)
+            plot_slides = lambda coronal, sagittal, ss, fig, return_figure: self.plot_slides(coronal, sagittal, ss, fig, return_figure)
+            return interact(plot_slides, coronal=(0, self.shape[0] - 1),
+            sagittal=(0, self.shape[-1] - 1), ss=fixed(gs[0]), fig=fixed(fig), return_figure=fixed(1)), plt.clf()
         
 
 class ColoredVolumetric:
@@ -184,7 +191,7 @@ class ColoredVolumetric:
     def __getitem__(self, some_slice: Tuple[Any, Any, Any]) -> np.ndarray:
         return self.vol_data.color_table[self.vol_data[some_slice], :]
     
-    def plot_slides(self, coronal: int, sagittal:int, contour: bool=True, ss: SubplotSpec=None, fig: Any=None, return_figure: bool=False) -> Any:
+    def plot_slides(self, coronal: int, sagittal: int, contour: bool=False, ss: SubplotSpec=None, fig: Any=None, return_figure: bool=False) -> Any:
             if fig is None:
                 fig = plt.gcf()
             if ss is None:
@@ -195,30 +202,35 @@ class ColoredVolumetric:
             ax = fig.add_subplot(gs[0])
             coronal_section = self[coronal, :, :]
             ax.imshow(coronal_section)
-            coronal_section = self.vol_data[coronal, :, :]
             ax.axvline(sagittal, c='y', lw=1)
+
             if contour:
-                for ix in range(self.vol_data.ids.shape[0]):
-                    ith_contours = find_contours((coronal_section == ix).astype(float), 0.5)
+                coronal_section = self.vol_data[coronal, :, :]
+                for one_hot in one_hot_encoding(coronal_section):
+                    ith_contours = find_contours(one_hot, 0.5)
                     for n_ith_contour in ith_contours:
-                        plt.plot(n_ith_contour[:, 1], n_ith_contour[:, 0], lw=0.8,
-                                 color="w")
+                        ax.plot(n_ith_contour[:, 1], n_ith_contour[:, 0], lw=0.8,
+                                 color="w",zorder=1000)
             ax = fig.add_subplot(gs[1])
             sagittal_section = self[:, :, sagittal]
             ax.imshow(np.transpose(sagittal_section, (1, 0, 2)))
-            sagittal_section = self.vol_data[:, :, sagittal]
             ax.axvline(coronal, c='y', lw=1)
+
             if contour:
-                for ix in range(self.vol_data.ids.shape[0]):
-                    ith_contours = find_contours((sagittal_section == ix).astype(float), 0.5)
+                sagittal_section = self.vol_data[:, :, sagittal]
+                for one_hot in one_hot_encoding(sagittal_section):
+                    ith_contours = find_contours(one_hot, 0.5)
                     for n_ith_contour in ith_contours:
-                        plt.plot(n_ith_contour[:, 0], n_ith_contour[:, 1], lw=0.8, color="w")
+                        ax.plot(n_ith_contour[:, 0], n_ith_contour[:, 1], lw=0.8, color="w",zorder=1000)
             if return_figure:
                 return fig
     
     def interactive_slides(self) -> None:
         fig = plt.figure(figsize=(12, 5))
         gs = plt.GridSpec(1, 1)
-        interact(self.plot_slides, coronal=(0, self.vol_data.shape[0] - 1),
-                 sagittal=(0, self.vol_data.shape[-1] - 1), ss=fixed(gs[0]), fig=fixed(fig))
-        plt.clf()
+
+        def plot_slides(coronal, sagittal, contour, ss, fig, return_figure):
+            return self.plot_slides(coronal, sagittal, contour, ss, fig, return_figure)
+        
+        return interact(plot_slides, coronal=(0, self.vol_data.shape[0] - 1), sagittal=(0, self.vol_data.shape[-1] - 1),
+        contour=False, ss=fixed(gs[0]), fig=fixed(fig), return_figure=fixed(1)), plt.clf()
