@@ -4,6 +4,7 @@ from allensdk.api.queries.rma_api import RmaApi
 from allensdk.api.queries.grid_data_api import GridDataApi
 import os
 from typing import *
+import logging
 
 
 class FISHFetcher:
@@ -116,7 +117,11 @@ class FISHFetcher:
             e.g. "P56", "E", "E13", "P"
 
         """
-        ids = self.find_id_ish(gene, sag_or_cor=sag_or_cor, adu_or_dev=adu_or_dev, time_point=time_point) 
-        idd = ids[0]
-        output_path = os.path.join(folder, "%s_%s_%s_%s.zip" % (gene, sag_or_cor, time_point, idd))
-        gda.download_expression_grid_data(idd, path=output_path)
+        ids = self.find_id_ish(gene, sag_or_cor=sag_or_cor, adu_or_dev=adu_or_dev, time_point=time_point)
+        try:
+            idd = ids[0]
+            output_path = os.path.join(folder, "%s_%s_%s_%s.zip" % (gene, sag_or_cor, time_point, idd))
+            self.gda.download_expression_grid_data(idd, path=output_path)
+        except KeyError:
+            logging.warn("Experiment %s was never performed" % gene)
+            pass
