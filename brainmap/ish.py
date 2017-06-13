@@ -197,10 +197,12 @@ class ISHLoader:
             path = self.index[value]
             return bm.AllenVolumetricData(filename=path)
         else:
+            logging.debug("%s was not in root, attempting dowload" % value)
             for sag_or_cor in self.priority:
                 output_path = self._fetcher.download_grid_recent(gene=value, folder=self.root, sag_or_cor=sag_or_cor,
                                                                  adu_or_dev=self.adu_or_dev, time_point=self.time_point)
                 if output_path and isinstance(output_path, str):
+                    logging.debug("%s slicing derived dataset was found" % sag_or_cor)
                     self.index[value] = output_path
                     return bm.AllenVolumetricData(filename=self.index[value])
             raise KeyError("gene %s is not available in root or for dowload in the Allen Brain Atlas" % value)
