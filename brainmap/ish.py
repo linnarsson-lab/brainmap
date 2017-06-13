@@ -6,6 +6,7 @@ import os
 import glob
 from typing import *
 import brainmap as bm
+import re
 import logging
 
 
@@ -129,7 +130,7 @@ class ISHFetcher:
                                                                      "%s_%s_%s_%s.zip" % (gene, sag_or_cor, time_point, idd)))
 
     def download_grid_recent(self, gene: str, folder: str='../data', sag_or_cor: str="sagittal",
-                             adu_or_dev: str="adult", time_point: str="P56") -> bool:
+                             adu_or_dev: str="adult", time_point: str="P56") -> Union[str, bool]:
         """Dowloads the most recently qc-ed file among the ones available
 
          Args
@@ -165,23 +166,28 @@ class ISHFetcher:
 
 class ISHLoader:
     def __init__(self, root: str, adu_or_dev: str="adult",
-                 time_point: str="P56", priority: Tuple[str, str]=("coronal", "sagittal")) -> None:
+                 time_point: str="P56", priority: List[str]=["coronal", "sagittal"]) -> None:
         self.root = root
         self.adu_or_dev = adu_or_dev
         self.time_point = time_point
         self.priority = priority
+        self.regex_list = [re.compile("(.*?)%s(.*?).zip" % i) for i in self.priority]
         assert os.path.isdir(self.root), "%s is not a folder" % self.root
         self._fetcher = ISHFetcher()
+        self.index = {}  # type: Dict[str, str]
         self._build_index()
 
     def _build_index(self) -> None:
         """Build dict gene->file
-        NOTE! It assumes that there is only one file per gene
         """
         file_list = glob.glob(os.path.join(self.root, "*_*.zip"))
-        genes, file_fullpath = zip(*[(i.split("_")[0], i) for i in file_list])
-        assert len(genes) == len(set(genes)), "genes are not unique, check your root folder or reimplement the build_index methods"
-        self.index = dict(zip(genes, file_fullpath))
+        all_genes, all_paths = zip(*[(i.split("_")[0], i) for i in file_list])
+        for n, regex in enumerate(self.regex_list[::-1]):
+            for i, path in enumerate(all_paths):
+                if all_genes[i] in self.index:
+                    logging.debug("gene %s is present in duplicate %s will be kept" % (all_genes[i], self.priority[::-1][n]))
+                if regex.match(path):
+                    self.index[all_genes[i]] = path
 
     def __contains__(self, value: Any) -> bool:
         return value in self.index
@@ -194,7 +200,7 @@ class ISHLoader:
             for sag_or_cor in self.priority:
                 output_path = self._fetcher.download_grid_recent(gene=value, folder=self.root, sag_or_cor=sag_or_cor,
                                                                  adu_or_dev=self.adu_or_dev, time_point=self.time_point)
-                if output_path:
+                if output_path and isinstance(output_path, str):
                     self.index[value] = output_path
                     return bm.AllenVolumetricData(filename=self.index[value])
             raise KeyError("gene %s is not available in root or for dowload in the Allen Brain Atlas" % value)
