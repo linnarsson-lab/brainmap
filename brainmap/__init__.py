@@ -1,2 +1,2 @@
 from .core import AllenBrainReference, AllenBrainStructure, AllenBrainReference, AllenVolumetricData
-from .fetcher import ISHFetcher
+from .ish import ISHFetcher

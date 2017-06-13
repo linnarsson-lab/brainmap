@@ -3,7 +3,9 @@ import matplotlib.pyplot as plt
 from allensdk.api.queries.rma_api import RmaApi
 from allensdk.api.queries.grid_data_api import GridDataApi
 import os
+import glob
 from typing import *
+import brainmap as bm
 import logging
 
 
@@ -127,7 +129,7 @@ class ISHFetcher:
                                                                      "%s_%s_%s_%s.zip" % (gene, sag_or_cor, time_point, idd)))
 
     def download_grid_recent(self, gene: str, folder: str='../data', sag_or_cor: str="sagittal",
-                             adu_or_dev: str="adult", time_point: str="P56") -> None:
+                             adu_or_dev: str="adult", time_point: str="P56") -> bool:
         """Dowloads the most recently qc-ed file among the ones available
 
          Args
@@ -144,12 +146,55 @@ class ISHFetcher:
         time_point: str (it will be autmatically wildcarded)
             e.g. "P56", "E", "E13", "P"
 
+        Returns
+        -------
+        output_path: output_path or bool
+            if the download was successfull returns the path to the file otherwise False
+
         """
         ids = self.find_id_ish(gene, sag_or_cor=sag_or_cor, adu_or_dev=adu_or_dev, time_point=time_point)
         try:
             idd = ids[0]
             output_path = os.path.join(folder, "%s_%s_%s_%s.zip" % (gene, sag_or_cor, time_point, idd))
             self.gda.download_expression_grid_data(idd, path=output_path)
+            return output_path
         except IndexError:
             logging.warn("Experiment %s was never performed" % gene)
-            pass
+            return False
+
+
+class ISHLoader:
+    def __init__(self, root: str, adu_or_dev: str="adult",
+                 time_point: str="P56", priority: Tuple[str, str]=("coronal", "sagittal")) -> None:
+        self.root = root
+        self.adu_or_dev = adu_or_dev
+        self.time_point = time_point
+        self.priority = priority
+        assert os.path.isdir(self.root), "%s is not a folder" % self.root
+        self._fetcher = ISHFetcher()
+        self._build_index()
+
+    def _build_index(self) -> None:
+        """Build dict gene->file
+        NOTE! It assumes that there is only one file per gene
+        """
+        file_list = glob.glob(os.path.join(self.root, "*_*.zip"))
+        genes, file_fullpath = zip(*[(i.split("_")[0], i) for i in file_list])
+        assert len(genes) == len(set(genes)), "genes are not unique, check your root folder or reimplement the build_index methods"
+        self.index = dict(zip(genes, file_fullpath))
+
+    def __contains__(self, value: Any) -> bool:
+        return value in self.index
+
+    def __getitem__(self, value: str) -> np.ndarray:
+        if value in self:
+            path = self.index[value]
+            return bm.AllenVolumetricData(filename=path)
+        else:
+            for sag_or_cor in self.priority:
+                output_path = self._fetcher.download_grid_recent(gene=value, folder=self.root, sag_or_cor=sag_or_cor,
+                                                                 adu_or_dev=self.adu_or_dev, time_point=self.time_point)
+                if output_path:
+                    self.index[value] = output_path
+                    return bm.AllenVolumetricData(filename=self.index[value])
+            raise KeyError("gene %s is not available in root or for dowload in the Allen Brain Atlas" % value)
