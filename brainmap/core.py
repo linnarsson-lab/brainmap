@@ -7,21 +7,13 @@ import matplotlib.pyplot as plt
 from matplotlib.gridspec import SubplotSpec, GridSpecFromSubplotSpec
 from skimage.measure import find_contours
 from colormap import Color
+from scipy.ndimage import zoom
+from brainmap import LimitedSizeDict, one_hot_encoding
 try:
     from ipywidgets import interact, interactive, fixed, interact_manual
     import ipywidgets as widgets
 except ImportError:
     logging.warn("ipywidgets is not installed some function will not be available")
-
-
-def one_hot_encoding(array2d: np.ndarray) -> List[np.ndarray]:
-    temp = np.array(array2d, dtype=int)
-    labels, temp.flat[:] = np.unique(temp, return_inverse=True)
-    arrays = [np.zeros(temp.shape, dtype=bool) for _ in range(len(labels))]
-    for i in range(temp.shape[0]):
-        for j in range(temp.shape[1]):
-            arrays[temp[i, j]][i, j] = True
-    return arrays
 
 
 class AllenBrainStructure:
@@ -156,6 +148,17 @@ class AllenVolumetricData:
     @property
     def colored(self) -> Any:
         return self._colored
+
+    @property
+    def zoom(self) -> Any:
+        if self.is_label:
+            raise NotImplementedError("Zoom for label images is not implemented yet. Should be done by RegularGridInterpolator!")
+        else:
+            try:
+                return self._zooms
+            except AttributeError:
+                self._zooms = ZoomedVolumeCollection(self)  # type: Any
+                return self._zooms
     
     def plot_slides(self, coronal: int, sagittal: int, ss: SubplotSpec=None, fig: Any=None, return_figure: Any=False) -> Any:
         if self.is_label and self.reference:
@@ -186,7 +189,23 @@ class AllenVolumetricData:
             plot_slides = lambda coronal, sagittal, ss, fig, return_figure: self.plot_slides(coronal, sagittal, ss, fig, return_figure)
             return interact(plot_slides, coronal=(0, self.shape[0] - 1),
                             sagittal=(0, self.shape[-1] - 1), ss=fixed(gs[0]), fig=fixed(fig), return_figure=fixed(1)), plt.clf()
-        
+
+
+class ZoomedVolumeCollection:
+    def __init__(self, allen_vol_data: AllenVolumetricData) -> None:
+        self.vol_data = allen_vol_data
+        self.collection = LimitedSizeDict(5)
+
+    def __getitem__(self, value: float) -> Any:
+        if value in self:
+            return self.collection[value]
+        else:
+            self.collection[value] = zoom(self.vol_data[:, :, :], value)
+            return self.collection[value]
+
+    def __contains__(self, value: float) -> bool:
+        return value in self.collection
+
 
 class ColoredVolumetric:
     def __init__(self, allen_vol_data: AllenVolumetricData) -> None:
