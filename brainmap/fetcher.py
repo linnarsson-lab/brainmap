@@ -8,13 +8,37 @@ import logging
 
 
 class ISHFetcher:
+    ''' A downloader object for Section Data Sets
+
+    Methods
+    -------
+
+    find_id_ish:
+        Returns the ids of Section Data Sets (a single gene experiment) sorted by qc time
+
+    download_grid_all:
+        Dowloads all the expression energy 3d density file (200um grid) that satisfy the query
+
+    download_grid_recent:
+        Dowloads the most recently qc-ed expression energy 3d density file (200um grid) that satisfy the query
+
+    Attributes
+    ----------
+    rma:
+        Rma Api instance
+    gda
+        GridData Api instance
+    res
+        results of the find_id_ish query
+    '''
     def __init__(self) -> None:
         self.rma = RmaApi()
         self.gda = GridDataApi()
+        self.res = None  # type: List
 
     def find_id_ish(self, gene: str, sag_or_cor: str="sagittal",
-                    adu_or_dev: str="adult", time_point: str="P56") -> List[int]:
-        """Return the ids of Section Data Sets (a single gene experiment)
+                    adu_or_dev: str="adult", time_point: str="P56") -> List:
+        """Returns the ids of Section Data Sets (a single gene experiment)
 
         Args
         ----
@@ -36,6 +60,7 @@ class ISHFetcher:
             sorted by most_recent to mose ancient
 
         """
+        
         if adu_or_dev == "adult" and "E" in time_point:
             raise ValueError("there is not adult with age %s" % time_point)
 
@@ -53,15 +78,15 @@ class ISHFetcher:
                     "plane_of_section[name$li'%s']" % sag_or_cor,
                     "genes[acronym$eq'%s']" % gene]
         # include='reference_space',
-        res = self.rma.model_query("SectionDataSet", criteria=','.join(criteria), only=["id", "qc_date"], num_rows='all')
-        if isinstance(res, str):
-            raise ValueError("Bad query! Server returned :\n%s" % res)
+        self.res = self.rma.model_query("SectionDataSet", criteria=','.join(criteria), only=["id", "qc_date"], num_rows='all')
+        if isinstance(self.res, str):
+            raise ValueError("Bad query! Server returned :\n%s" % self.res)
 
-        if res == []:
-            return res
+        if self.res == []:
+            return []
 
         qc_date = []
-        for i in res:
+        for i in self.res:
             if i["qc_date"] is None:
                 qc_date.append('')
             else:
@@ -72,7 +97,7 @@ class ISHFetcher:
 
         results = []
         for i in ix:
-            results.append(int(res[i]["id"]))
+            results.append(int(self.res[i]["id"]))
 
         return results
 
@@ -99,7 +124,7 @@ class ISHFetcher:
         for idd in ids:
             self.gda.download_expression_grid_data(idd,
                                                    path=os.path.join(folder,
-                                                                     "%s_%s_%s_%s.zip" % (gene,sag_or_cor,time_point,idd)))
+                                                                     "%s_%s_%s_%s.zip" % (gene, sag_or_cor, time_point, idd)))
 
     def download_grid_recent(self, gene: str, folder: str='../data', sag_or_cor: str="sagittal",
                              adu_or_dev: str="adult", time_point: str="P56") -> None:
