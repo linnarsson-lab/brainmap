@@ -103,7 +103,7 @@ class Reference3D:
                 
     
 class AllenVolumetricData:
-    def __init__(self, filename: str, reference: AllenBrainReference=None) -> None:
+    def __init__(self, filename: str, reference: AllenBrainReference=None, remove_negative_entries: bool=True) -> None:
         self.filename = filename
         self.zip_container = zipfile.ZipFile(filename)
         for i in self.zip_container.infolist():
@@ -122,6 +122,8 @@ class AllenVolumetricData:
         logging.debug("Reading data file")
         buffer = self.zip_container.open(raw_file).read()
         array1d = np.fromstring(buffer, dtype=self.file_type)
+        if remove_negative_entries and not self.is_label:
+            array1d[array1d < 0] = np.min(array1d[array1d >= 0])
         if self.is_label:
             self.ids, array1d = np.unique(array1d, return_inverse=True)
         self._values = array1d.reshape(self.shape, order='F')
@@ -175,7 +177,7 @@ class AllenVolumetricData:
             if return_figure:
                 return fig
         
-    def interactive_slides(self) -> None:
+    def interactive_slides(self) -> Any:
         if self.is_label and self.reference:
             return self.colored.interactive_slides()
         else:
@@ -183,7 +185,7 @@ class AllenVolumetricData:
             gs = plt.GridSpec(1, 1)
             plot_slides = lambda coronal, sagittal, ss, fig, return_figure: self.plot_slides(coronal, sagittal, ss, fig, return_figure)
             return interact(plot_slides, coronal=(0, self.shape[0] - 1),
-            sagittal=(0, self.shape[-1] - 1), ss=fixed(gs[0]), fig=fixed(fig), return_figure=fixed(1)), plt.clf()
+                            sagittal=(0, self.shape[-1] - 1), ss=fixed(gs[0]), fig=fixed(fig), return_figure=fixed(1)), plt.clf()
         
 
 class ColoredVolumetric:
@@ -227,7 +229,7 @@ class ColoredVolumetric:
             if return_figure:
                 return fig
     
-    def interactive_slides(self) -> None:
+    def interactive_slides(self) -> Any:
         fig = plt.figure(figsize=(12, 5))
         gs = plt.GridSpec(1, 1)
 
@@ -235,4 +237,4 @@ class ColoredVolumetric:
             return self.plot_slides(coronal, sagittal, contour, ss, fig, return_figure)
         
         return interact(plot_slides, coronal=(0, self.vol_data.shape[0] - 1), sagittal=(0, self.vol_data.shape[-1] - 1),
-        contour=False, ss=fixed(gs[0]), fig=fixed(fig), return_figure=fixed(1)), plt.clf()
+                        contour=False, ss=fixed(gs[0]), fig=fixed(fig), return_figure=fixed(1)), plt.clf()
