@@ -180,16 +180,18 @@ class ISHLoader:
     def _build_index(self) -> None:
         """Build dict gene->file
         """
+        self.duplicates = []  # type: List[str]
         file_list = glob.glob(os.path.join(self.root, "*_*.zip"))
         if file_list == []:
             return
         all_genes, all_paths = zip(*[(os.path.split(i)[-1].split("_")[0], i) for i in file_list])
         for n, regex in enumerate(self.regex_list[::-1]):
-            for i, path in enumerate(all_paths):
-                if all_genes[i] in self.index:
-                    logging.debug("gene %s is present in duplicate %s will be kept" % (all_genes[i], self.priority[::-1][n]))
+            for i, (path, gene) in enumerate(zip(all_paths, all_genes)):
                 if regex.match(path):
+                    if gene in self:
+                        self.duplicates.append(gene)
                     self.index[all_genes[i]] = path
+        logging.debug("%i duplicates were found" % len(self.duplicates))
 
     def __contains__(self, value: Any) -> bool:
         return value in self.index
