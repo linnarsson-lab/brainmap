@@ -7,7 +7,7 @@ from typing import *
 import logging
 
 
-class FISHFetcher:
+class ISHFetcher:
     def __init__(self) -> None:
         self.rma = RmaApi()
         self.gda = GridDataApi()
