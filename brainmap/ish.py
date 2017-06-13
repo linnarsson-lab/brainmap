@@ -8,6 +8,23 @@ from typing import *
 import brainmap as bm
 import re
 import logging
+from collections import OrderedDict
+
+
+class LimitedSizeDict(OrderedDict):
+    def __init__(self, *args: Any, **kwds: Any) -> None:
+        self.size_limit = kwds.pop("size_limit", None)  # type: int
+        OrderedDict.__init__(self, *args, **kwds)
+        self._check_size_limit()
+
+    def __setitem__(self, key: Any, value: Any) -> None:
+        OrderedDict.__setitem__(self, key, value)
+        self._check_size_limit()
+
+    def _check_size_limit(self) -> None:
+        if self.size_limit is not None:
+            while len(self) > self.size_limit:
+                self.popitem(last=False)
 
 
 class ISHFetcher:
@@ -176,6 +193,7 @@ class ISHLoader:
         self._fetcher = ISHFetcher()
         self.index = {}  # type: Dict[str, str]
         self._build_index()
+        self._cache = LimitedSizeDict(size_limit=300)  # type: LimitedSizeDict
 
     def _build_index(self) -> None:
         """Build dict gene->file
@@ -197,9 +215,13 @@ class ISHLoader:
         return value in self.index
 
     def __getitem__(self, value: str) -> np.ndarray:
-        if value in self:
+        if value in self._cache:
+            return self._cache[value]
+        elif value in self:
             path = self.index[value]
-            return bm.AllenVolumetricData(filename=path)
+            vol_data = bm.AllenVolumetricData(filename=path)
+            self._cache[value] = vol_data
+            return vol_data
         else:
             logging.debug("%s was not in root, attempting dowload" % value)
             for sag_or_cor in self.priority:
