@@ -14,13 +14,13 @@ except ImportError:
     logging.warn("ipywidgets is not installed some function will not be available")
 
 
-def one_hot_encoding(array2d):
+def one_hot_encoding(array2d: np.ndarray) -> List[np.ndarray]:
     temp = np.array(array2d, dtype=int)
     labels, temp.flat[:] = np.unique(temp, return_inverse=True)
     arrays = [np.zeros(temp.shape, dtype=bool) for _ in range(len(labels))]
     for i in range(temp.shape[0]):
         for j in range(temp.shape[1]):
-            arrays[temp[i,j]][i,j] = True
+            arrays[temp[i, j]][i, j] = True
     return arrays
 
 
