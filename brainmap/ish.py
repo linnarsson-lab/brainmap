@@ -181,7 +181,9 @@ class ISHLoader:
         """Build dict gene->file
         """
         file_list = glob.glob(os.path.join(self.root, "*_*.zip"))
-        all_genes, all_paths = zip(*[(i.split("_")[0], i) for i in file_list])
+        if file_list == []:
+            return
+        all_genes, all_paths = zip(*[(os.path.split(i)[-1].split("_")[0], i) for i in file_list])
         for n, regex in enumerate(self.regex_list[::-1]):
             for i, path in enumerate(all_paths):
                 if all_genes[i] in self.index:
