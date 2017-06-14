@@ -118,7 +118,7 @@ class AllenVolumetricData:
             array1d[array1d < 0] = np.min(array1d[array1d >= 0])
         if self.is_label:
             self.ids, array1d = np.unique(array1d, return_inverse=True)
-        self._values = array1d.reshape(self.shape, order='F')
+        self._values = np.ascontiguousarray(array1d.reshape(self.shape, order='F'))
         self.zip_container.close()
         if self.is_label:
             self.reference = reference
