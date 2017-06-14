@@ -1,5 +1,5 @@
 from typing import *
-import np
+import numpy as np
 from collections import OrderedDict
 
 
