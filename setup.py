@@ -13,7 +13,8 @@ setup(
         'matplotlib',
         'colormap',
         'ipywidgets',
-        'scikit-image'
+        'scikit-image',
+        'easydev'
     ],
     # scripts=[],
     author="Gioele La Manno",
